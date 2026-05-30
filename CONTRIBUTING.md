@@ -5,7 +5,7 @@ Thank you for considering a contribution. VitalRoute is a small research library
 ## Quick start
 
 ```bash
-git clone https://github.com/<your-fork>/vitalroute.git
+git clone https://github.com/alirazaanis/vitalroute.git
 cd vitalroute
 pip install -e ".[dev]"   # installs numpy, torch, torchvision, scikit-learn
 pytest tests/             # all tests should pass

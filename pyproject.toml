@@ -35,10 +35,10 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage       = "https://github.com/vitalroute/vitalroute"
-Repository     = "https://github.com/vitalroute/vitalroute"
-"Bug Tracker"  = "https://github.com/vitalroute/vitalroute/issues"
-Changelog      = "https://github.com/vitalroute/vitalroute/blob/main/CHANGELOG.md"
+Homepage       = "https://github.com/alirazaanis/vitalroute"
+Repository     = "https://github.com/alirazaanis/vitalroute"
+"Bug Tracker"  = "https://github.com/alirazaanis/vitalroute/issues"
+Changelog      = "https://github.com/alirazaanis/vitalroute/blob/master/CHANGELOG.md"
 
 [project.optional-dependencies]
 demo  = ["scikit-learn>=1.3"]

@@ -4,7 +4,7 @@ title: "VitalRoute: Vitality-Driven Adaptive Training for Imbalanced and Scarce 
 version: 0.1.0
 date-released: 2026-05-30
 license: MIT
-repository-code: "https://github.com/vitalroute/vitalroute"
+repository-code: "https://github.com/alirazaanis/vitalroute"
 abstract: >
   VitalRoute is a task-aware training controller that monitors four internal
   stress signals (stasis, weak weights, weak input, saturation) in neural
