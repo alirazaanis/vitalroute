@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use VitalRoute in your research, please cite it as below."
+title: "VitalRoute: Vitality-Driven Adaptive Training for Imbalanced and Scarce Classification Tasks"
+version: 0.1.0
+date-released: 2026-05-30
+license: MIT
+repository-code: "https://github.com/vitalroute/vitalroute"
+abstract: >
+  VitalRoute is a task-aware training controller that monitors four internal
+  stress signals (stasis, weak weights, weak input, saturation) in neural
+  network hidden units and uses a composite vitality score to automatically
+  drive class-aware oversampling, label-free transfer parent selection, and
+  per-layer learning rate dampening — all selected by a single adaptive router
+  that reads only the shape of the training set.
+keywords:
+  - imbalanced learning
+  - neural network health
+  - adaptive training
+  - dead neurons
+  - class sampling
+  - transfer learning
+  - PyTorch
+  - machine learning
+authors:
+  - name: "VitalRoute Contributors"
