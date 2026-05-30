@@ -34,13 +34,13 @@ where \( \bar{f}_j = \frac{1}{N}\sum_i \mathbf{1}[A^{(l)}_{ij} > 0] \) is the em
 
 A unit \( j \) has weak weights if its incoming weight column has collapsed:
 
-$$\text{weak\_weights}_j = \mathbf{1}\!\left[\|W^{(l)}_{:,j}\|_2 < \tau_w\right], \quad \tau_w = 0.05$$
+$$\text{weak-weights}_j = \mathbf{1}\!\left[\|W^{(l)}_{:,j}\|_2 < \tau_w\right], \quad \tau_w = 0.05$$
 
 ### 2.3 Weak Input
 
 A unit \( j \) has a weak input signal if most of its incoming activations are smaller in magnitude than the corresponding weights — the network is poorly matched to the data:
 
-$$\text{weak\_input}_j = \mathbf{1}\!\left[\frac{1}{d_{l-1}}\sum_k \mathbf{1}[\bar{x}_k < |W^{(l)}_{kj}|] > \phi\right], \quad \phi = 0.8$$
+$$\text{weak-input}_j = \mathbf{1}\!\left[\frac{1}{d_{l-1}}\sum_k \mathbf{1}[\bar{x}_k < |W^{(l)}_{kj}|] > \phi\right], \quad \phi = 0.8$$
 
 where \( \bar{x}_k = \frac{1}{N}\sum_i |A^{(l-1)}_{ik}| \) is the mean activation magnitude of incoming unit \( k \).
 
