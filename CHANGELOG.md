@@ -6,6 +6,13 @@ VitalRoute uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.1.1] — 2026-05-30 — Metadata fix
+
+### Fixed
+- Corrected repository URLs in `pyproject.toml` and `CITATION.cff` to `github.com/alirazaanis/vitalroute`
+
+---
+
 ## [0.1.0] — 2026-05-30 — Initial public release
 
 ### Added
