@@ -44,12 +44,12 @@ An **adaptive router** turns (1)–(4) on or off from class counts and dataset s
 ## Install
 
 ```powershell
-cd vitalroute
-pip install -r requirements.txt
-pip install -e .
+pip install vitalroute==0.2.0
+# PyTorch extras (probe, CNN, MLPerf hooks):
+pip install "vitalroute[torch]==0.2.0"
 ```
 
-Requires Python 3.10+ and NumPy.
+Requires Python 3.10+ and NumPy. See [PyPI](https://pypi.org/project/vitalroute/).
 
 ## Quick use
 
