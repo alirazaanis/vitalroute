@@ -14,6 +14,12 @@ The library distills a research line on network vitality — stasis, weak coupli
 saturation, and transferable structure — into probes, label-free parent selection,
 and class-aware sampling, without requiring any legacy codebase or naming scheme.
 
+<p align="center">
+  <img src="assets/vitalroute-how-it-works.png" alt="VitalRoute: imbalanced data, vitality monitoring, and adaptive training adjustment" width="720">
+</p>
+
+*Imbalanced classes → monitor neuron health during training → VitalRoute steers learning toward struggling classes.*
+
 ## Vitality signals and tactics
 
 A classic biological metaphor treats the network like a
@@ -119,6 +125,7 @@ vitalroute/
   README.md
   PAPER.md            # research paper style writeup
   INTEGRATION.md      # NumPy, PyTorch, CNN, MLPerf integration
+  assets/             # README and social images (not on PyPI)
   pyproject.toml
   vitalroute/
     vitality.py         # layer stress probes + per-class/per-sample stress
