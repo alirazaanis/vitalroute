@@ -99,6 +99,8 @@ Include:
 
 Use the [bug report issue template](https://github.com/alirazaanis/vitalroute/issues/new?template=bug_report.yml).
 
+For security vulnerabilities, see [SECURITY.md](SECURITY.md). Do not file public issues for security bugs.
+
 ## Feature requests
 
 Use the [feature request template](https://github.com/alirazaanis/vitalroute/issues/new?template=feature_request.yml).
