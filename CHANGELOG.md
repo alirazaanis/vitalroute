@@ -39,7 +39,7 @@ VitalRoute uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `INTEGRATION.md` — CNN, MLPerf, and benchmark result sections
 
 ### Repository
-- `.github/workflows/ci.yml` — pytest on Python 3.10–3.12 for push and PR
+- `.github/workflows/publish-pypi.yml` — publish to PyPI on GitHub release
 - `.github/workflows/codeql.yml` — Python CodeQL analysis
 - `.github/dependabot.yml` — weekly pip and GitHub Actions updates
 - `.github/PULL_REQUEST_TEMPLATE.md` — PR checklist
