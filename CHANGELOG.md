@@ -6,7 +6,7 @@ VitalRoute uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [Unreleased] — CNN and MLPerf support
+## [0.2.0] — 2026-06-03 — CNN, MLPerf, and public contributions
 
 ### Added
 
@@ -40,14 +40,12 @@ VitalRoute uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Repository
 - `.github/workflows/ci.yml` — pytest on Python 3.10–3.12 for push and PR
+- `.github/workflows/codeql.yml` — Python CodeQL analysis
+- `.github/dependabot.yml` — weekly pip and GitHub Actions updates
 - `.github/PULL_REQUEST_TEMPLATE.md` — PR checklist
 - `.github/ISSUE_TEMPLATE/` — bug report and feature request forms
 - `CODE_OF_CONDUCT.md`, `SECURITY.md` — community and security policies
 - Expanded `CONTRIBUTING.md` for public contributions
-
-### Benchmark notes (CIFAR-10 ResNet18, 10:1 long-tail, 2-epoch smoke)
-- VitalRoute minority accuracy 33.5% vs inv_freq 29.4% vs uniform/focal 0% at epoch 2
-- Run `python examples/run_cnn_benchmarks.py --full` for 15-epoch multi-seed numbers
 
 ---
 

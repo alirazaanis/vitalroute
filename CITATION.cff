@@ -1,8 +1,8 @@
 cff-version: 1.2.0
 message: "Cite VitalRoute as below when referencing this software."
 title: "VitalRoute: Vitality-Driven Adaptive Training for Imbalanced and Scarce Classification Tasks"
-version: 0.1.0
-date-released: 2026-05-30
+version: 0.2.0
+date-released: 2026-06-03
 license: MIT
 repository-code: "https://github.com/alirazaanis/vitalroute"
 abstract: >
