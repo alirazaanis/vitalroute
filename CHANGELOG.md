@@ -6,6 +6,51 @@ VitalRoute uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [Unreleased] — CNN and MLPerf support
+
+### Added
+
+**CNN modules**
+- `torch_data.py` — `stratified_probe_indices`, `stratified_probe_batch`
+- `torch_probe_cnn.py` — `CNNVitalityProbe` with BatchNorm-aware conv probing and `probe_zone=head|trunk|all`
+- `torch_probes.py` — `make_probe`, `detect_architecture`
+- `torch_transfer.py` — `pick_transfer_parent_torch`, `warm_start_from_parent`
+- `torch_lr_scale.py` — `build_layer_param_groups`, `make_vitality_optimizer`, `apply_lr_scales`
+- `TorchTrainingController` — `architecture`, `probe_zone`, `parent_pool`, `make_optimizer()`
+
+**MLPerf integration**
+- `mlperf_hooks.py` — `VitalRouteMLPerfCallback` with `log_mlperf_tags()`
+
+**Examples**
+- `examples/cifar10_lt_benchmark.py` — full LT + transfer-pick demo
+- `examples/imagenet_lt_benchmark.py` — CIFAR-100-LT local / ImageNet-LT
+- `examples/mlperf_resnet_integration.py` — MLPerf callback demo
+- `examples/run_cnn_benchmarks.py` — unified benchmark runner
+- `examples/benchmark_cnn_common.py` — shared CNN benchmark utilities
+
+**Tests**
+- `tests/test_torch_cnn.py` — 8 tests for CNN probe, transfer, LR scale, MLPerf callback
+
+### Fixed
+- `cifar10_resnet_benchmark.py` — stratified probe batch and `y_full=targets_np` (was incorrectly `y_full=y_seed`)
+
+### Documentation
+- `README.md` — CNN benchmark results, mechanism table, package layout
+- `INTEGRATION.md` — CNN, MLPerf, and benchmark result sections
+
+### Repository
+- `.github/workflows/ci.yml` — pytest on Python 3.10–3.12 for push and PR
+- `.github/PULL_REQUEST_TEMPLATE.md` — PR checklist
+- `.github/ISSUE_TEMPLATE/` — bug report and feature request forms
+- `CODE_OF_CONDUCT.md`, `SECURITY.md` — community and security policies
+- Expanded `CONTRIBUTING.md` for public contributions
+
+### Benchmark notes (CIFAR-10 ResNet18, 10:1 long-tail, 2-epoch smoke)
+- VitalRoute minority accuracy 33.5% vs inv_freq 29.4% vs uniform/focal 0% at epoch 2
+- Run `python examples/run_cnn_benchmarks.py --full` for 15-epoch multi-seed numbers
+
+---
+
 ## [0.1.1] — 2026-05-30 — Metadata fix
 
 ### Fixed

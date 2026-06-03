@@ -1,60 +1,115 @@
 # Contributing to VitalRoute
 
-Contributions welcome — bug fixes, benchmarks, documentation, and new tactics.
+VitalRoute is an open-source project (MIT license). Contributions include bug
+fixes, tests, documentation, benchmarks, and new training tactics.
 
-## Quick start
+## Before you start
+
+1. Search [existing issues](https://github.com/alirazaanis/vitalroute/issues) for duplicates.
+2. For large features, open an issue first to align on design.
+3. Read [INTEGRATION.md](INTEGRATION.md) for training-loop integration patterns.
+
+## Development setup
 
 ```bash
 git clone https://github.com/alirazaanis/vitalroute.git
 cd vitalroute
-pip install -e ".[dev]"   # installs numpy, torch, torchvision, scikit-learn
-pytest tests/             # all tests must pass
+pip install -e ".[dev]"   # numpy, torch, torchvision, scikit-learn, pytest
+pytest tests/             # must pass before opening a PR
+```
+
+Optional CNN benchmarks (download datasets locally; not committed):
+
+```bash
+python examples/run_cnn_benchmarks.py --quick
 ```
 
 ## What to contribute
 
 | Area | Examples |
 |---|---|
-| Bug fixes | Incorrect stress calculation, sampler edge cases, hook cleanup |
-| New benchmarks | CIFAR-LT, ImageNet-LT, tabular imbalanced datasets |
-| New tactics | Mixup-driven stress, per-head stress for transformers |
-| PyTorch improvements | BatchNorm-aware stasis, Conv2d composite stress |
-| Documentation | Clarifications in README, INTEGRATION, PAPER |
-| Tests | Coverage for NumPy backbone, edge cases |
+| Bug fixes | Stress calculation, sampler edge cases, hook cleanup |
+| Tests | NumPy backbone, PyTorch probe, CNN, edge cases |
+| Documentation | README, INTEGRATION, PAPER clarifications |
+| Benchmarks | CIFAR-LT, ImageNet-LT, tabular imbalanced data |
+| PyTorch | Probes, controllers, LR scale, transfer pick |
+| CNN / vision | BatchNorm stasis, probe zones, ResNet benchmarks |
+| MLPerf | Callback hooks, reference-loop integration |
+| New tactics | Mixup-driven stress, transformer / LLM probes (see issues) |
 
-## Guidelines
+## Pull request process
 
-### Code style
-- Match existing code style (no external formatter required)
-- Type hints on public functions are appreciated; type stubs are not required
-- Core package dependencies are limited to NumPy; PyTorch extensions belong in `torch_*.py` files only
+1. Fork the repository and create a branch from `master`.
+2. Make a focused change (one logical topic per PR).
+3. Add or update tests for changed public behavior.
+4. Update docs when APIs, examples, or behavior change.
+5. Confirm `pytest tests/` passes.
+6. Open a PR using the template. Link related issues (`Fixes #123`).
 
-### Tests
-- Changed or new public functions require a test in `tests/`
-- All tests must pass (`pytest tests/`) before submission
-- PyTorch tests use small synthetic tensors; total runtime under 10 seconds
+### PR requirements
 
-### Commits and PRs
-- One logical change per PR
-- PR title: one-line summary of the change
-- Related issues referenced in the PR description
-- Version bumps are handled by maintainers, not in PRs
+| Requirement | Detail |
+|---|---|
+| Tests | All tests pass; new public APIs have coverage |
+| Scope | One logical change; split large work across PRs |
+| Docs | Update README / INTEGRATION / CHANGELOG as needed |
+| Version | Maintainers bump version; do not change `pyproject.toml` version in PRs |
+| Secrets | No API keys, credentials, or personal dataset paths |
+| Data | Do not commit `.data/`, checkpoints, or downloaded datasets |
+
+### Review
+
+Maintainers review for correctness, test coverage, API consistency, and
+documentation. Feedback may request changes before merge.
+
+## Code guidelines
+
+### Style
+
+- Match existing code in the file you edit.
+- Type hints on public functions are appreciated.
+- Core package depends on NumPy only; PyTorch code lives in `torch_*.py` and `mlperf_hooks.py`.
+- Comments explain non-obvious logic; avoid restating the code.
+
+### Architecture rules
+
+- VitalRoute does not own the backward pass; it provides epoch hooks and samplers.
+- Probe data (`X_probe`, `y_probe`) must be stratified across classes.
+- Sampler labels (`y_full`) must cover the full training set.
+- CNN models use `architecture="cnn"` and `CNNVitalityProbe` via `make_probe()`.
 
 ### New tactics
-New tactics (new file in `vitalroute/`) require:
-1. Export from `vitalroute/__init__.py` in the relevant section
-2. At least one unit test
-3. Documentation in `INTEGRATION.md` with a minimal usage example
-4. A one-line entry in the package layout table in `README.md`
+
+A new tactic (new module under `vitalroute/`) requires:
+
+1. Export from `vitalroute/__init__.py` (NumPy) or documented import path (PyTorch).
+2. At least one unit test in `tests/`.
+3. A minimal example in `INTEGRATION.md`.
+4. A one-line entry in the package layout table in `README.md`.
+5. An entry in `CHANGELOG.md` under `[Unreleased]`.
 
 ## Reporting bugs
 
-Bug reports should include:
+Include:
+
 - Python version and OS
-- `pip show vitalroute torch numpy` output
+- Output of `pip show vitalroute torch numpy`
 - Minimal reproducible example
 - Full traceback
 
+Use the [bug report issue template](https://github.com/alirazaanis/vitalroute/issues/new?template=bug_report.yml).
+
+## Feature requests
+
+Use the [feature request template](https://github.com/alirazaanis/vitalroute/issues/new?template=feature_request.yml).
+State the problem, proposed behavior, and affected area (router, probe, CNN, etc.).
+
+## Code of conduct
+
+This project follows the [Code of Conduct](CODE_OF_CONDUCT.md). Participants are
+expected to uphold it in issues, pull requests, and discussions.
+
 ## License
 
-Contributions are licensed under the MIT License.
+By contributing, you agree that your contributions are licensed under the
+[MIT License](LICENSE).

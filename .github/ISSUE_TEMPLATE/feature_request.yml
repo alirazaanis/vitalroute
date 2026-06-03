@@ -1,0 +1,50 @@
+name: Feature request
+description: Propose a new tactic, integration, or benchmark
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the problem and the proposed solution. For new tactics, note
+        how it fits VitalRoute (vitality signals, routing, or sampling).
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What task or limitation motivates this request?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+      description: How should VitalRoute address it?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - NumPy backbone / router
+        - PyTorch probe or controller
+        - CNN / vision
+        - Transfer learning
+        - MLPerf or training-loop integration
+        - LLM / transformer (future)
+        - Documentation or examples
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to open a PR for this
+          required: false

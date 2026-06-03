@@ -39,6 +39,8 @@ Homepage       = "https://github.com/alirazaanis/vitalroute"
 Repository     = "https://github.com/alirazaanis/vitalroute"
 "Bug Tracker"  = "https://github.com/alirazaanis/vitalroute/issues"
 Changelog      = "https://github.com/alirazaanis/vitalroute/blob/master/CHANGELOG.md"
+Documentation  = "https://github.com/alirazaanis/vitalroute/blob/master/INTEGRATION.md"
+"Contributing" = "https://github.com/alirazaanis/vitalroute/blob/master/CONTRIBUTING.md"
 
 [project.optional-dependencies]
 demo  = ["scikit-learn>=1.3"]

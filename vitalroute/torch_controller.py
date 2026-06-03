@@ -5,26 +5,15 @@
 (vitality sampler, hard-sample sampler, LR dampening, unit monitoring),
 and hands back a ``DataLoader``-compatible sampler and a thin epoch hook.
 
-The training loop stays unchanged — three calls are added:
-
-    ctrl    = torch_adaptive_controller(y_train, num_classes)
-    sampler = ctrl.setup(model, X_train, y_train)
-
-    for epoch in range(epochs):
-        ctrl.on_epoch_start(model, X_train, optimizer, epoch)
-        loader = DataLoader(dataset, sampler=sampler, batch_size=64)
-        for X_batch, y_batch in loader:
-            ...  # standard loss + backward + step
-        ctrl.after_epoch(model, X_train, y_train)
-
-``ctrl.setup()`` returns ``None`` when no sampler is needed (balanced
-dataset); in that case use a standard ``DataLoader`` without a sampler.
+CNN support includes stratified probe batches (``torch_data``), ``CNNVitalityProbe``,
+PyTorch transfer pick (``torch_transfer``), and per-layer LR param groups
+(``torch_lr_scale`` / ``make_vitality_optimizer``).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple, Union
+from typing import List, Literal, Optional, Tuple, Union
 
 import numpy as np
 
@@ -38,23 +27,22 @@ except ImportError as exc:  # pragma: no cover
     ) from exc
 
 from .router import profile_task, route_plan
-from .torch_probe import VitalityProbe
+from .torch_lr_scale import apply_lr_scales, make_vitality_optimizer
+from .torch_probes import Architecture, ProbeZone, make_probe
 from .torch_samplers import TorchHardSampleSampler, TorchVitalitySampler
-
+from .torch_transfer import pick_transfer_parent_torch, warm_start_from_parent
 
 EpochSampler = Union[TorchVitalitySampler, TorchHardSampleSampler]
 
 
 @dataclass
 class TorchTrainingController:
-    """Adaptive training controller for PyTorch models.
-
-    Instantiate via ``torch_adaptive_controller()`` rather than directly.
-    """
+    """Adaptive training controller for PyTorch models."""
 
     routing_label: str = "monitor"
     use_imbalance_sampler: bool = False
     use_hard_sample_sampler: bool = False
+    use_transfer_pick: bool = False
     use_lr_scale: bool = False
     lr_scale_alpha: float = 4.0
     lr_scale_min: float = 0.1
@@ -68,16 +56,21 @@ class TorchTrainingController:
     hard_beta: float = 3.0
     hard_refresh_every: int = 1
 
+    architecture: Architecture = "auto"
+    probe_zone: ProbeZone = "all"
+    parent_pool: Optional[List[Tuple[str, nn.Module]]] = None
+
     monitor: bool = True
     verbose: bool = False
 
-    _probe: Optional[VitalityProbe] = field(default=None, init=False)
+    picked_parent_name: Optional[str] = field(default=None, init=False)
+    picked_parent_stasis: Optional[float] = field(default=None, init=False)
+
+    _probe: Optional[object] = field(default=None, init=False)
     _sampler: Optional[EpochSampler] = field(default=None, init=False)
-    _y_train: Optional[np.ndarray] = field(default=None, init=False)
+    _y_probe: Optional[np.ndarray] = field(default=None, init=False)
     _epoch: int = field(default=0, init=False)
     _lr_scales: dict = field(default_factory=dict, init=False)
-
-    # ── setup ──────────────────────────────────────────────────────────────
 
     def setup(
         self,
@@ -89,29 +82,32 @@ class TorchTrainingController:
         num_classes: int,
         seed: int = 0,
     ) -> Optional[EpochSampler]:
-        """Attach probe and build sampler. One invocation before the training loop.
+        """Attach probe, optional transfer warm-start, and build sampler."""
+        if self.use_transfer_pick and self.parent_pool:
+            name, parent, scores = pick_transfer_parent_torch(
+                self.parent_pool, X_probe, probe_zone=self.probe_zone
+            )
+            info = warm_start_from_parent(model, parent, fresh_head=True)
+            self.picked_parent_name = name
+            self.picked_parent_stasis = scores[0].stasis
+            if self.verbose:
+                print(
+                    f"  [vitalroute] transfer pick: {name}  "
+                    f"stasis={scores[0].stasis:.4f}  loaded={info['n_loaded']}"
+                )
 
-        Parameters
-        ----------
-        X_probe / y_probe:
-            A representative (stratified) subset of the training data used
-            to run the vitality probe. Must include samples from every class.
-            Typically 50–100 per class is sufficient.
-        y_full:
-            Full training labels (one per training example). Used to build
-            the sampler's class pools. If ``None``, ``y_probe`` is used —
-            only correct when ``X_probe`` covers the whole training set.
-
-        Returns the sampler (or ``None`` if routing chose no sampler).
-        """
-        self._probe = VitalityProbe(model)
+        self._probe = make_probe(
+            model,
+            self.architecture,
+            probe_zone=self.probe_zone,
+        )
         self._probe.observe(X_probe)
 
         if isinstance(y_probe, torch.Tensor):
             probe_labels = y_probe.cpu().numpy().astype(np.int64)
         else:
             probe_labels = np.asarray(y_probe, dtype=np.int64)
-        self._y_train = probe_labels   # stored for probe refresh in on_epoch_start
+        self._y_probe = probe_labels
 
         if y_full is not None:
             if isinstance(y_full, torch.Tensor):
@@ -122,9 +118,12 @@ class TorchTrainingController:
             sampler_labels = probe_labels
 
         if self.verbose:
-            print(f"  [vitalroute] route={self.routing_label}  "
-                  f"probe on {len(self._probe.layer_names())} layers  "
-                  f"(probe_n={len(probe_labels)}  full_n={len(sampler_labels)})")
+            print(
+                f"  [vitalroute] route={self.routing_label}  "
+                f"arch={self.architecture} zone={self.probe_zone}  "
+                f"probe on {len(self._probe.layer_names())} layers  "
+                f"(probe_n={len(probe_labels)}  full_n={len(sampler_labels)})"
+            )
 
         if self.use_imbalance_sampler and num_classes > 1:
             self._sampler = TorchVitalitySampler(
@@ -150,7 +149,17 @@ class TorchTrainingController:
 
         return self._sampler
 
-    # ── epoch hooks ────────────────────────────────────────────────────────
+    def make_optimizer(
+        self,
+        model: nn.Module,
+        optimizer_cls: type = torch.optim.Adam,
+        lr: float = 1e-3,
+        **kwargs,
+    ) -> torch.optim.Optimizer:
+        """Plain optimizer, or vitality-scaled param groups when lr_scale is on."""
+        if self.use_lr_scale and self._probe is not None:
+            return make_vitality_optimizer(model, self._probe, optimizer_cls, lr, **kwargs)
+        return optimizer_cls(model.parameters(), lr=lr, **kwargs)
 
     def on_epoch_start(
         self,
@@ -159,10 +168,6 @@ class TorchTrainingController:
         optimizer: "torch.optim.Optimizer",
         epoch: int,
     ) -> None:
-        """Refresh probe, update LR scales and sampler weights.
-
-        Invoked at the top of each epoch before building the DataLoader.
-        """
         self._epoch = epoch
         if self._probe is None:
             return
@@ -171,45 +176,26 @@ class TorchTrainingController:
             self._probe.observe(X_train)
 
         if self.use_lr_scale:
-            self._apply_lr_scales(model, optimizer)
+            self._lr_scales = apply_lr_scales(
+                optimizer,
+                self._probe,
+                alpha=self.lr_scale_alpha,
+                lr_min=self.lr_scale_min,
+            )
+            if self.verbose and self._lr_scales:
+                vec = [f"{v:.2f}" for v in self._lr_scales.values()]
+                print(f"    [vitalroute] lr_scale: [{', '.join(vec)}]")
 
-        if self._sampler is not None and self._y_train is not None:
+        if self._sampler is not None and self._y_probe is not None:
             refresh_every = (
                 self.sampler_refresh_every
                 if self.use_imbalance_sampler
                 else self.hard_refresh_every
             )
             if epoch % max(1, refresh_every) == 0:
-                if isinstance(X_train, np.ndarray):
-                    X_t = torch.from_numpy(X_train)
-                else:
-                    X_t = X_train
-                y_t = torch.from_numpy(self._y_train)
+                X_t = torch.from_numpy(X_train) if isinstance(X_train, np.ndarray) else X_train
+                y_t = torch.from_numpy(self._y_probe)
                 self._sampler.refresh(X_t, y_t, model)
-
-    def _apply_lr_scales(
-        self, model: nn.Module, optimizer: "torch.optim.Optimizer"
-    ) -> None:
-        """Scale per-layer LR by 1 / (1 + alpha * stasis_rate)."""
-        if self._probe is None:
-            return
-        rates = self._probe.stasis_rates()
-        names = self._probe.layer_names()
-        scale_map = {}
-        for name, rate in zip(names, rates):
-            scale = max(self.lr_scale_min, 1.0 / (1.0 + self.lr_scale_alpha * float(rate)))
-            scale_map[name] = scale
-
-        mean_scale = float(np.mean(list(scale_map.values()))) if scale_map else 1.0
-        for pg in optimizer.param_groups:
-            if "name" in pg and pg["name"] in scale_map:
-                if "base_lr" not in pg:
-                    pg["base_lr"] = pg["lr"]
-                pg["lr"] = pg["base_lr"] * scale_map[pg["name"]]
-        self._lr_scales = scale_map
-        if self.verbose and scale_map:
-            vec = [f"{v:.2f}" for v in scale_map.values()]
-            print(f"    [vitalroute] lr_scale: [{', '.join(vec)}]  mean={mean_scale:.2f}")
 
     def after_epoch(
         self,
@@ -217,7 +203,6 @@ class TorchTrainingController:
         X_train: "torch.Tensor | np.ndarray",
         y_train: "torch.Tensor | np.ndarray",
     ) -> dict:
-        """Log vitality after the epoch. Returns stasis and composite stats."""
         if self._probe is None:
             return {}
         self._probe.observe(X_train)
@@ -229,22 +214,22 @@ class TorchTrainingController:
         return info
 
     def detach(self) -> None:
-        """Remove forward hooks after training is complete."""
         if self._probe is not None:
             self._probe.detach()
             self._probe = None
 
     @property
-    def probe(self) -> Optional[VitalityProbe]:
+    def probe(self):
         return self._probe
 
-
-# ── factory ──────────────────────────────────────────────────────────────────
 
 def torch_adaptive_controller(
     y_train: "torch.Tensor | np.ndarray",
     num_classes: int,
     *,
+    parent_pool: Optional[List[Tuple[str, nn.Module]]] = None,
+    architecture: Architecture = "auto",
+    probe_zone: ProbeZone = "all",
     verbose: bool = False,
     sampler_strength: float = 0.7,
     sampler_beta: float = 4.0,
@@ -256,11 +241,7 @@ def torch_adaptive_controller(
     min_samples_for_lr_scale: int = 80,
     min_samples_for_hard_sampler: int = 40,
 ) -> TorchTrainingController:
-    """Build a ``TorchTrainingController`` with tactics chosen from class counts.
-
-    Mirrors ``adaptive_controller()`` from the NumPy API.
-    Transfer pick is skipped (PyTorch models handle that separately).
-    """
+    """Build a ``TorchTrainingController`` with tactics chosen from class counts."""
     if isinstance(y_train, torch.Tensor):
         y_np = y_train.cpu().numpy().astype(np.int64)
     else:
@@ -269,7 +250,7 @@ def torch_adaptive_controller(
     profile = profile_task(y_np, num_classes)
     plan = route_plan(
         profile,
-        parent_pool_available=False,
+        parent_pool_available=bool(parent_pool),
         imbalance_threshold=imbalance_threshold,
         min_class_for_sampler=min_class_for_sampler,
         max_samples_for_transfer=max_samples_for_transfer,
@@ -288,11 +269,15 @@ def torch_adaptive_controller(
         routing_label=plan.label,
         use_imbalance_sampler=plan.use_imbalance_sampler,
         use_hard_sample_sampler=plan.use_hard_sample_sampler,
+        use_transfer_pick=plan.use_transfer_pick,
         use_lr_scale=plan.use_lr_scale,
         lr_scale_alpha=lr_scale_alpha,
         sampler_strength=sampler_strength,
         sampler_beta=sampler_beta,
         sampler_refresh_every=sampler_refresh_every,
+        architecture=architecture,
+        probe_zone=probe_zone,
+        parent_pool=parent_pool,
         monitor=True,
         verbose=verbose,
     )

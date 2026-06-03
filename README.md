@@ -118,25 +118,35 @@ For purely long-tail problems with clean class boundaries, inv_freq is simpler a
 vitalroute/
   README.md
   PAPER.md            # research paper style writeup
-  INTEGRATION.md
+  INTEGRATION.md      # NumPy, PyTorch, CNN, MLPerf integration
   pyproject.toml
   vitalroute/
     vitality.py         # layer stress probes + per-class/per-sample stress
     imbalance.py        # composite vitality class sampler (NumPy)
     hard_samples.py     # per-sample stress sampler (NumPy)
     lr_scale.py         # vitality-scaled Adam / SGD (NumPy)
-    transfer.py         # label-free parent pick
+    transfer.py         # label-free parent pick (NumPy)
     router.py           # task profile + adaptive controller (NumPy)
     torch_probe.py      # VitalityProbe — forward hooks for any nn.Module
+    torch_probe_cnn.py  # CNNVitalityProbe — BatchNorm-aware conv probing
+    torch_probes.py     # make_probe / detect_architecture registry
+    torch_transfer.py   # PyTorch transfer pick + warm_start_from_parent
+    torch_lr_scale.py   # per-layer param groups + apply_lr_scales
+    torch_data.py       # stratified_probe_batch helper
     torch_samplers.py   # TorchVitalitySampler + TorchHardSampleSampler
     torch_controller.py # TorchTrainingController + torch_adaptive_controller
+    mlperf_hooks.py     # VitalRouteMLPerfCallback for MLPerf-style loops
     backbone/           # optional reference MLP for demos
   examples/
     digits_imbalanced_demo.py     # NumPy backbone quick demo
     benchmark_baselines.py        # NumPy baseline comparison (digits)
     torch_probe_demo.py           # VitalityProbe on a PyTorch MLP
     torch_benchmark_fmnist.py     # PyTorch baseline comparison (Fashion-MNIST)
-    cifar10_resnet_benchmark.py   # ResNet18 / CIFAR-10 (GPU recommended)
+    cifar10_resnet_benchmark.py   # ResNet18 / CIFAR-10-LT
+    cifar10_lt_benchmark.py       # CIFAR-10-LT + transfer-pick demo
+    imagenet_lt_benchmark.py      # CIFAR-100-LT local / ImageNet-LT
+    mlperf_resnet_integration.py  # MLPerf callback demo
+    run_cnn_benchmarks.py         # run all CNN benchmarks (--quick / --full)
   tests/
 ```
 
@@ -157,9 +167,11 @@ Measured on public-style benchmarks:
 Method         Overall    Minority
 uniform        93.7%±1.1%  87.9%±2.3%
 inv_freq       94.4%±0.8%  90.1%±1.0%
-vitalroute     95.1%±0.3%  90.8%±1.0%   ← best overall + lowest variance
+vitalroute     95.1%±0.3%  90.8%±1.0%
 stasis_only    95.0%±0.7%  90.7%±1.5%
 ```
+
+Highest overall accuracy and lowest seed variance in this run.
 
 **PyTorch benchmark** (`examples/torch_benchmark_fmnist.py`), 3 seeds, 20 epochs, 10:1 imbalance on Fashion-MNIST MLP:
 
@@ -168,10 +180,51 @@ Method         Overall    Minority
 uniform        80.1%±0.4%  72.8%±1.2%
 inv_freq       81.7%±0.5%  77.6%±0.9%
 focal          80.0%±0.3%  72.6%±0.2%
-vitalroute     81.7%±0.2%  76.5%±0.6%   ← matches inv_freq, beats focal/uniform
+vitalroute     81.7%±0.2%  76.5%±0.6%
 ```
 
-VitalRoute matches inverse-frequency on overall accuracy and minority accuracy, while showing notably lower variance than competing methods. On the digits backbone it gains an additional +0.7% minority over inv_freq at significantly lower variance.
+Overall and minority accuracy match inv_freq; variance is lower than uniform and focal.
+
+**CNN benchmark** (`examples/cifar10_resnet_benchmark.py`), ResNet18, 10:1 long-tail CIFAR-10 (classes 0–4: 1000 samples each; classes 5–9: 100 each):
+
+| Method | Role in comparison |
+|---|---|
+| uniform | Unweighted sampling baseline |
+| inv_freq | Inverse-frequency `WeightedRandomSampler` |
+| focal | Focal loss (γ=2), uniform sampling |
+| vitalroute | Adaptive vitality class sampler + `CNNVitalityProbe` |
+
+Smoke run (2 epochs, CPU, 1 seed). Full numbers: `python examples/run_cnn_benchmarks.py --full`.
+
+```
+Method         Overall    Minority
+uniform        26.6%       0.0%
+inv_freq       38.7%      29.4%
+focal          27.4%       0.0%
+vitalroute     36.9%      33.5%
+```
+
+At epoch 2, minority accuracy is 33.5% (vitalroute) vs 29.4% (inv_freq). Uniform and focal report 0% on minority classes in this run.
+
+### CNN long-tail: mechanisms
+
+| Tactic | Behavior |
+|---|---|
+| Vitality class sampler | Oversamples classes with high composite stress on conv and head layers, not frequency alone |
+| vs focal loss | Focal modulates loss per sample; VitalRoute modulates sampling from internal activation health |
+| Adaptive router | Enables sampler, transfer pick, or LR scale from class counts and dataset size |
+| `CNNVitalityProbe` | Reads Conv→BN→ReLU trunk and/or linear head (`probe_zone=head`, `trunk`, or `all`) |
+| PyTorch transfer pick | Ranks parents by stasis on unlabeled inputs; warm-starts trunk via `warm_start_from_parent` |
+| Per-layer LR | `make_optimizer()` assigns named param groups; stasis rate scales each group's learning rate |
+| MLPerf callback | `VitalRouteMLPerfCallback` exposes the same epoch hooks as MLPerf reference training loops |
+
+### Running CNN benchmarks
+
+```powershell
+pip install -e ".[dev]"
+python examples/run_cnn_benchmarks.py --quick   # 2 epochs per script
+python examples/run_cnn_benchmarks.py --full    # 15 epochs, multiple trials
+```
 
 ## PyTorch integration
 
@@ -200,20 +253,30 @@ probe.detach()                      # remove hooks
 
 ### Full adaptive controller
 
-`torch_adaptive_controller` reads the class distribution and picks tactics automatically:
+`torch_adaptive_controller` selects tactics from the training label distribution.
+For CNNs, set `architecture="cnn"` and `probe_zone` to `"head"` (classifier only),
+`"trunk"` (conv blocks), or `"all"` (both).
 
 ```python
 from vitalroute.torch_controller import torch_adaptive_controller
+from vitalroute.torch_data import stratified_probe_batch
 from torch.utils.data import DataLoader
 
-ctrl    = torch_adaptive_controller(y_train, num_classes=10, verbose=True)
+ctrl = torch_adaptive_controller(
+    y_train, num_classes=10,
+    architecture="cnn",
+    probe_zone="all",
+    parent_pool=None,   # optional: [("parent_a", model_a), ...]
+    verbose=True,
+)
 
-# X_probe/y_probe: small stratified batch (~50/class) for the probe
-# y_full: full training labels for the sampler's class pools
-sampler = ctrl.setup(model, X_probe, y_probe, y_full=y_train_full,
-                     num_classes=10)
+X_probe, y_probe, _ = stratified_probe_batch(
+    train_dataset, y_train, per_class=50, num_classes=10, device="cuda"
+)
+sampler = ctrl.setup(model, X_probe, y_probe, y_full=y_train, num_classes=10)
+optimizer = ctrl.make_optimizer(model, torch.optim.SGD, lr=0.05, momentum=0.9)
 
-loader  = DataLoader(dataset, sampler=sampler, batch_size=64)
+loader = DataLoader(dataset, sampler=sampler, batch_size=64) if sampler else DataLoader(dataset, batch_size=64, shuffle=True)
 
 for epoch in range(epochs):
     ctrl.on_epoch_start(model, X_probe, optimizer, epoch)
@@ -224,11 +287,25 @@ for epoch in range(epochs):
 ctrl.detach()
 ```
 
-Runnable examples: `examples/torch_probe_demo.py`, `examples/torch_benchmark_fmnist.py`.
+### MLPerf Training integration
+
+`VitalRouteMLPerfCallback` wraps `TorchTrainingController` in an epoch callback
+interface aligned with MLPerf reference training loops. See `INTEGRATION.md` and
+`examples/mlperf_resnet_integration.py`.
+
+Runnable examples: `examples/torch_probe_demo.py`, `examples/torch_benchmark_fmnist.py`,
+`examples/cifar10_resnet_benchmark.py`, `examples/run_cnn_benchmarks.py`.
 
 ## License
 
 MIT
+
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup,
+PR requirements, and code guidelines. Please read [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+before participating. Report security issues via [SECURITY.md](SECURITY.md), not
+public issues.
 
 ## Related Work
 
