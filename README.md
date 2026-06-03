@@ -190,7 +190,7 @@ focal          80.0%±0.3%  72.6%±0.2%
 vitalroute     81.7%±0.2%  76.5%±0.6%
 ```
 
-Overall and minority accuracy match inv_freq; variance is lower than uniform and focal.
+Overall accuracy matches inv_freq (81.7%); minority accuracy is 1.1 points below inv_freq (76.5% vs 77.6%) but variance is lower across all seeds.
 
 **CNN benchmark** (`examples/cifar10_resnet_benchmark.py`), ResNet18, 10:1 long-tail CIFAR-10 (classes 0–4: 1000 samples each; classes 5–9: 100 each):
 

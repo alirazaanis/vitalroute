@@ -14,7 +14,7 @@ Training neural networks on imbalanced or scarce datasets remains a practical ch
 
 A complementary view treats class difficulty as reflected in the *activation patterns* of hidden units. A class that consistently causes neurons to fall silent (dead ReLUs), collapse their weights, or saturate is a class the network fails to represent. Oversampling based on this internal signal — rather than purely on frequency — is the central hypothesis of VitalRoute.
 
-This report describes the design, implementation, and empirical evaluation of VitalRoute v0.1.0.
+This report describes the design, implementation, and empirical evaluation of VitalRoute v0.2.0.
 
 ---
 
@@ -134,7 +134,7 @@ The routing rules (defaults, all overridable):
 
 ## 5. PyTorch Integration
 
-The vitality computation was originally developed for a custom NumPy MLP. VitalRoute v0.1.0 introduces `VitalityProbe`, which attaches the same four stress signals to any `torch.nn.Module` via `register_forward_hook`. The probe automatically pairs `Linear` / `Conv2d` modules with the activation function that immediately follows them in the module list, ensuring that stasis is measured on post-activation values (where dead neurons actually manifest).
+The vitality computation was originally developed for a custom NumPy MLP. VitalRoute introduces `VitalityProbe`, which attaches the same four stress signals to any `torch.nn.Module` via `register_forward_hook`. The probe automatically pairs `Linear` / `Conv2d` modules with the activation function that immediately follows them in the module list, ensuring that stasis is measured on post-activation values (where dead neurons actually manifest).
 
 The PyTorch `TorchTrainingController` mirrors the NumPy `TrainingController` API. A key design decision is the separation of *probe data* (a small stratified batch used to compute vitality signals, ~50 samples per class) from *sampler labels* (the full training label vector used to build class pools). Conflating these leads to biased stress estimates and degenerate sampling.
 
@@ -174,7 +174,7 @@ VitalRoute achieves the best overall accuracy and the lowest variance across see
 | Inv-freq | 81.7% ± 0.5% | 77.6% ± 0.9% |
 | **VitalRoute** | **81.7% ± 0.2%** | 76.5% ± 0.6% |
 
-VitalRoute matches inv-freq on overall accuracy and minority accuracy while showing the lowest variance. Focal loss does not improve over uniform on this benchmark, consistent with prior findings that focal loss benefits are dataset-dependent.
+VitalRoute matches inv-freq on overall accuracy (81.7%) and shows the lowest variance across seeds. Minority accuracy is 76.5% vs inv-freq's 77.6% — 1.1 points below, not a match; the trade-off is lower variance. Focal loss does not improve over uniform on this benchmark, consistent with prior findings that focal loss benefits are dataset-dependent.
 
 ### 6.3 Discussion
 
@@ -221,7 +221,7 @@ Several methods assign distinct learning rates per layer. **LARS** [[7]](#ref-7)
 
 ## 9. Conclusion
 
-VitalRoute is a small, composable library that brings network health monitoring into the training loop. The four vitality signals — stasis, weak weights, weak input, saturation — provide a richer picture of per-class difficulty than frequency alone. The adaptive router selects tactics automatically from dataset shape, removing the need for per-dataset configuration. On public benchmarks, VitalRoute matches or exceeds the best simple baseline (inverse-frequency weighting) with lower variance, and extends cleanly to any PyTorch model via forward hooks.
+VitalRoute is a small, composable library that brings network health monitoring into the training loop. The four vitality signals — stasis, weak weights, weak input, saturation — provide a richer picture of per-class difficulty than frequency alone. The adaptive router selects tactics automatically from dataset shape, removing the need for per-dataset configuration. On public benchmarks, VitalRoute matches inverse-frequency weighting on overall accuracy with lower variance; minority accuracy on Fashion-MNIST is slightly below inv-freq (76.5% vs 77.6%) while digits minority exceeds it (+0.7%), and extends cleanly to any PyTorch model via forward hooks.
 
 ---
 
@@ -250,7 +250,7 @@ Random seeds are fixed per trial (seed = trial index). No external data beyond s
 
 <a id="ref-2"></a>[2] Shrivastava, A., Gupta, A., and Girshick, R. **Training Region-based Object Detectors with Online Hard Example Mining.** CVPR, 2016. <https://arxiv.org/abs/1604.03540>
 
-<a id="ref-3"></a>[3] Bengio, Y. et al. **Curriculum Learning.** ICML, 2009. <https://papers.nips.cc/paper_files/paper/2010/hash/e57c6b956a6521b28495f2886ca0977a-Abstract.html>
+<a id="ref-3"></a>[3] Kumar, M. P. et al. **Self-Paced Learning for Latent Variable Models.** NeurIPS, 2010. <https://papers.nips.cc/paper_files/paper/2010/hash/e57c6b956a6521b28495f2886ca0977a-Abstract.html>
 
 <a id="ref-4"></a>[4] Overview of dead neurons in deep learning. <https://medium.com/@abhishekjainindore24/dead-neurons-in-deep-learning-their-effects-and-remedies-to-solve-it-e63da4dd9212>
 

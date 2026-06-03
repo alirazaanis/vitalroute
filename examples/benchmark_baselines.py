@@ -99,7 +99,8 @@ def run_vitalroute(Xtr, ytr, Xv, yv, *, epochs=30, lr=1e-3, seed=0,
     ctrl = adaptive_controller(ytr, 10, verbose=False,
                                 sampler_stress_mode=stress_mode)
     opt = ctrl.make_optimizer("adam", lr=lr)
-    sampler, _ = ctrl.bootstrap(model, Xtr, ytr, num_classes=10, seed=seed)    rng = np.random.default_rng(seed)
+    sampler, _ = ctrl.bootstrap(model, Xtr, ytr, num_classes=10, seed=seed)
+    rng = np.random.default_rng(seed)
     n = len(ytr)
     for ep in range(epochs):
         ctrl.on_epoch_start(model, Xtr, opt, ep)
