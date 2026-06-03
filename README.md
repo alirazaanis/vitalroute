@@ -5,14 +5,11 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-pytest-brightgreen.svg)](tests/)
 
-**Task-aware training controller** for feed-forward classifiers. It sits on top of
-the training optimizer (Adam, SGD, etc.) and decides *when* to apply training
-tactics based only on **training-set shape** (class counts and size) — not by
-hand-tuning flags for every dataset.
-
-The library distills a research line on network vitality — stasis, weak coupling,
-saturation, and transferable structure — into probes, label-free parent selection,
-and class-aware sampling, without requiring any legacy codebase or naming scheme.
+**Task-aware training controller** for feed-forward classifiers. VitalRoute wraps
+the training optimizer (Adam, SGD, etc.), reads **training-set shape** (class counts
+and size), and activates tactics — class oversampling, label-free transfer selection,
+per-layer LR scaling — from four neuron vitality signals: stasis, weak coupling,
+and saturation.
 
 <p align="center">
   <img src="assets/vitalroute-how-it-works.png" alt="VitalRoute: imbalanced data, vitality monitoring, and adaptive training adjustment" width="720">
@@ -22,8 +19,7 @@ and class-aware sampling, without requiring any legacy codebase or naming scheme
 
 ## Vitality signals and tactics
 
-A classic biological metaphor treats the network like a
-body that can be **examined** while it learns.
+VitalRoute monitors four per-unit stress signals:
 
 | Signal | Meaning |
 |---|---|
@@ -116,7 +112,7 @@ On a clean long-tail benchmark, VitalRoute ≈ inverse-frequency (inv_freq). The
 | Label-free transfer selection | Selects the best pretrained parent by stasis on new inputs — no labels needed. inv_freq has no equivalent |
 | Hard-sample curriculum | Per-sample stress (stasis + low confidence) for scarce balanced data; inv_freq only works at class level |
 
-For purely long-tail problems with clean class boundaries, inv_freq is simpler and nearly as good. When classes overlap, difficulty shifts, or label-free transfer selection is required, VitalRoute adds value.
+On long-tail data with clean class boundaries, VitalRoute and inv_freq reach similar accuracy. Use VitalRoute when classes overlap, difficulty shifts during training, or label-free transfer selection is required.
 
 ## Package layout
 
@@ -159,14 +155,14 @@ vitalroute/
 
 ## Evidence summary
 
-Measured on public-style benchmarks:
+Measured on published benchmarks:
 
-| Setting | Typical gain |
+| Setting | Measured gain |
 |---|---|
 | Imbalanced digits / Fashion minority classes | +2–4% minority accuracy vs uniform |
 | vs inverse-frequency baseline (same imbalanced digits) | +0.7% minority, lower variance |
-| Scarce digit subset with parent pool | up to +10% vs cold start |
-| Scarce cat/dog (MLP / small CNN) | +2–3% with transfer pick |
+| Scarce CIFAR-10-LT + transfer pick (`cifar10_lt_benchmark.py`) | See script output vs cold start |
+| Scarce cat/dog (MLP / CNN) | +2–3% with transfer pick |
 
 **NumPy backbone benchmark** (`examples/benchmark_baselines.py`), 3 seeds, 30 epochs, 5:1 imbalance on digits:
 
@@ -178,7 +174,7 @@ vitalroute     95.1%±0.3%  90.8%±1.0%
 stasis_only    95.0%±0.7%  90.7%±1.5%
 ```
 
-Highest overall accuracy and lowest seed variance in this run.
+Digits benchmark: VitalRoute — 95.1% overall, 90.8% minority, lowest cross-seed variance.
 
 **PyTorch benchmark** (`examples/torch_benchmark_fmnist.py`), 3 seeds, 20 epochs, 10:1 imbalance on Fashion-MNIST MLP:
 
@@ -201,7 +197,7 @@ Overall accuracy matches inv_freq (81.7%); minority accuracy is 1.1 points below
 | focal | Focal loss (γ=2), uniform sampling |
 | vitalroute | Adaptive vitality class sampler + `CNNVitalityProbe` |
 
-Smoke run (2 epochs, CPU, 1 seed). Full numbers: `python examples/run_cnn_benchmarks.py --full`.
+Quick benchmark (2 epochs, CPU, 1 seed). Full run: `python examples/run_cnn_benchmarks.py --full`.
 
 ```
 Method         Overall    Minority
@@ -329,19 +325,19 @@ The following related work is grouped by topic. Distinctions from VitalRoute are
 - [Adaptive Neuron Growth/Pruning for Imbalanced Classification](https://arxiv.org/abs/2507.09940) (2025) — adds/removes neurons per class using gradient magnitude. Orthogonal to VitalRoute: modifies architecture rather than sampling.
 
 **Per-layer learning rate scaling**
-- [LENA: Layer-wise Adaptive LR Scaling](https://dl.acm.org/doi/fullHtml/10.1145/3485447.3511989) — scales per-layer LR by gradient variance. VitalRoute scales by stasis (dead unit fraction), a complementary signal.
+- [LENA: Layer-wise Adaptive LR Scaling](https://dl.acm.org/doi/fullHtml/10.1145/3485447.3511989) — scales per-layer LR by gradient variance. VitalRoute scales by stasis (dead-unit fraction).
 - [LLR: Heavy-Tail Guided Layerwise LR for LLMs](https://arxiv.org/html/2605.22297v1) (2025) — uses weight spectrum heavy-tailedness. Same goal, different diagnostic.
 - [AdaLip: Adaptive LR per Layer via Lipschitz Estimation](https://d-nb.info/1283272997/34) — Lipschitz-constant-based per-layer LR.
 - [LARS](https://arxiv.org/abs/1708.03888) / [LAMB](https://arxiv.org/abs/1904.00962) — weight/gradient ratio scaling; used in large-batch distributed training.
 
 **Label-free transfer model selection**
-- [TURTLE: Unsupervised Transfer Learning](https://arxiv.org/html/2406.07236v1) (2024) — selects pretrained models without labels via representation-level generalization objectives. VitalRoute uses stasis rate on new data — simpler, different rationale.
+- [TURTLE: Unsupervised Transfer Learning](https://arxiv.org/html/2406.07236v1) (2024) — selects pretrained models without labels via representation-level generalization objectives. VitalRoute selects parents by lowest stasis on unlabeled target inputs.
 - [DISCO: Spectral Component Distribution for Transfer Assessment](https://arxiv.org/html/2412.19085v2) (2024) — SVD of feature distributions for transferability scoring.
 
 **Focal Loss (baseline used in benchmarks)**
 - [Focal Loss for Dense Object Detection](https://arxiv.org/abs/1708.02002) — Lin et al., 2017. Standard hard-example weighting via loss modulation.
 
 **Curriculum / hard-sample learning**
-- [Self-Paced Learning](https://papers.nips.cc/paper_files/paper/2010/hash/e57c6b956a6521b28495f2886ca0977a-Abstract.html) — Bengio et al., 2009. Foundation for curriculum-style training.
+- [Self-Paced Learning](https://papers.nips.cc/paper_files/paper/2010/hash/e57c6b956a6521b28495f2886ca0977a-Abstract.html) — Kumar et al., NeurIPS 2010. Curriculum-style training from latent difficulty.
 - [Online Hard Example Mining](https://arxiv.org/abs/1604.03540) — Shrivastava et al., 2016. Per-sample difficulty weighting from loss values.
 

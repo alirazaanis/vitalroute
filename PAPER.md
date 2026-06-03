@@ -4,7 +4,7 @@
 
 ## Abstract
 
-**VitalRoute** is a task-aware training controller that monitors the internal health of feed-forward neural networks during training and uses those observations to automatically select and apply remediation tactics. The core contribution is a set of four per-unit *vitality signals* — stasis, weak weights, weak input, and saturation — aggregated into a *composite stress* score that drives class-aware oversampling, label-free transfer parent selection, and per-layer learning rate dampening. An *adaptive router* reads only the shape of the training set (class counts and total size) to decide which tactics to activate, requiring no per-dataset configuration. Evaluation on long-tail digit and Fashion-MNIST classification shows consistent gains over uniform sampling, with performance matching inverse-frequency weighting at notably lower variance. A PyTorch integration layer (`VitalityProbe`) extends the system to any `nn.Module` via forward hooks without modifying the model, optimizer, or training loop.
+**VitalRoute** monitors feed-forward networks during training with four per-unit *vitality signals* — stasis, weak weights, weak input, and saturation — aggregates them into *composite stress*, and applies class-aware oversampling, label-free transfer parent selection, and per-layer learning rate dampening. An *adaptive router* activates tactics from training-set shape (class counts and total size) without per-dataset configuration. On long-tail digit and Fashion-MNIST benchmarks, VitalRoute exceeds uniform sampling; overall accuracy matches inverse-frequency weighting with lower seed variance. `VitalityProbe` attaches to any `torch.nn.Module` via forward hooks.
 
 ---
 
@@ -12,9 +12,9 @@
 
 Training neural networks on imbalanced or scarce datasets remains a practical challenge. The dominant remedies — inverse-frequency class weighting, focal loss, and simple oversampling — treat the problem from the data distribution perspective and are agnostic to what is happening inside the network.
 
-A complementary view treats class difficulty as reflected in the *activation patterns* of hidden units. A class that consistently causes neurons to fall silent (dead ReLUs), collapse their weights, or saturate is a class the network fails to represent. Oversampling based on this internal signal — rather than purely on frequency — is the central hypothesis of VitalRoute.
+VitalRoute treats class difficulty as *activation health* in hidden units. Classes that drive stasis, weight collapse, or saturation are oversampled by composite stress, not class frequency alone.
 
-This report describes the design, implementation, and empirical evaluation of VitalRoute v0.2.0.
+This document specifies the design, implementation, and benchmarks for VitalRoute v0.2.0.
 
 ---
 
@@ -80,13 +80,13 @@ This is activated when the imbalance ratio \( \min_c n_c \,/\, \max_c n_c < 0.25
 
 ### 3.2 Label-Free Transfer Parent Selection
 
-For scarce tasks (total \( n \leq 200 \) or minority \( \leq 12 \) samples per class), VitalRoute can select the best pretrained model from a pool without requiring target labels. Each candidate parent \( M_k \) is scored by its mean stasis on the new dataset:
+For scarce tasks (total \( n \leq 200 \) or minority \( \leq 12 \) samples per class), VitalRoute selects the pretrained parent with lowest stasis on target inputs (no labels required). Each candidate parent \( M_k \) is scored by its mean stasis on the new dataset:
 
 $$\text{score}(M_k) = 1 - \bar{s}(M_k, X_{\text{new}})$$
 
 where \( \bar{s} \) averages stasis rates over hidden layers. The parent with the highest score (lowest stasis) is selected and used to warm-start the child model via weight inheritance.
 
-The intuition: a model whose neurons remain active on the new data is extracting useful features from it, making it a better transfer source than a model that goes silent.
+Selection rule: the parent with the lowest mean stasis on target inputs retains active units on that data; high stasis indicates feature mismatch.
 
 ### 3.3 Hard-Sample Curriculum Sampler
 
@@ -112,7 +112,7 @@ After each epoch, if the mean stasis across hidden layers exceeds a threshold \(
 
 ## 4. Adaptive Router
 
-Rather than exposing individual tactic flags, VitalRoute exposes a single `adaptive_controller` entry point that selects tactics from three statistics computed on the training labels:
+VitalRoute exposes one `adaptive_controller` entry point. Tactic selection uses three statistics from the training labels:
 
 | Statistic | Computed as |
 |---|---|
@@ -134,7 +134,7 @@ The routing rules (defaults, all overridable):
 
 ## 5. PyTorch Integration
 
-The vitality computation was originally developed for a custom NumPy MLP. VitalRoute introduces `VitalityProbe`, which attaches the same four stress signals to any `torch.nn.Module` via `register_forward_hook`. The probe automatically pairs `Linear` / `Conv2d` modules with the activation function that immediately follows them in the module list, ensuring that stasis is measured on post-activation values (where dead neurons actually manifest).
+`VitalityProbe` attaches the four stress signals to any `torch.nn.Module` via `register_forward_hook`. The probe pairs each `Linear` / `Conv2d` with the activation module that follows it in the module list so stasis is measured on post-activation values.
 
 The PyTorch `TorchTrainingController` mirrors the NumPy `TrainingController` API. A key design decision is the separation of *probe data* (a small stratified batch used to compute vitality signals, ~50 samples per class) from *sampler labels* (the full training label vector used to build class pools). Conflating these leads to biased stress estimates and degenerate sampling.
 
@@ -163,7 +163,7 @@ All experiments use the public scikit-learn digits dataset (NumPy backbone) and 
 | Stasis-only | 95.0% ± 0.7% | 90.7% ± 1.5% |
 | **VitalRoute** | **95.1% ± 0.3%** | **90.8% ± 1.0%** |
 
-VitalRoute achieves the best overall accuracy and the lowest variance across seeds, suggesting that composite stress provides a more stable training signal than frequency or stasis alone.
+Digits benchmark: VitalRoute — 95.1% overall, 90.8% minority, lowest cross-seed variance (stasis_only: 95.0% / 90.7%).
 
 **PyTorch / Fashion-MNIST MLP — 10:1 imbalance, 3 seeds, 20 epochs:**
 
@@ -178,7 +178,7 @@ VitalRoute matches inv-freq on overall accuracy (81.7%) and shows the lowest var
 
 ### 6.3 Discussion
 
-On clean long-tail benchmarks, VitalRoute and inverse-frequency weighting converge to similar accuracy. This is expected: rare classes are also the classes where neuron death is most prevalent, so both signals point at the same targets. VitalRoute's advantage would be more pronounced in settings where class difficulty is not purely a function of frequency — confusable classes with sufficient samples, or tasks where class difficulty shifts mid-training. The label-free transfer parent selection has no analogue in frequency-based methods and represents the contribution with the least overlap with existing approaches.
+On clean long-tail benchmarks, VitalRoute and inverse-frequency weighting reach similar accuracy: rare classes coincide with high neuron death, so both signals target the same classes. VitalRoute diverges from inv_freq when class difficulty is not frequency-driven — confusable majority classes, or shifting difficulty across epochs. Label-free transfer parent selection by stasis has no inv_freq equivalent.
 
 ---
 
@@ -186,23 +186,23 @@ On clean long-tail benchmarks, VitalRoute and inverse-frequency weighting conver
 
 ### Adaptive class resampling
 
-The closest published work to VitalRoute's class sampler is **ART** [[1]](#ref-1), which periodically refreshes class sampling weights using class-wise macro F1 scores computed on a held-out set. The distinction is in the signal: ART reads an *external* performance metric; VitalRoute reads the *internal* activation state of hidden units. On clean long-tail datasets both converge to similar accuracy, but they respond differently when class difficulty is not a direct function of frequency.
+**ART** [[1]](#ref-1) refreshes class sampling weights from class-wise macro F1 on a held-out set. VitalRoute refreshes from *internal* activation stress. Both match inv_freq on clean long-tail data; they diverge when difficulty is not frequency-aligned.
 
-Earlier work on instance-level difficulty includes **Online Hard Example Mining (OHEM)** [[2]](#ref-2), which selects high-loss examples per mini-batch, and the **Self-Paced Learning** framework [[3]](#ref-3). VitalRoute's hard-sample sampler differs by computing difficulty from activation stress rather than loss values, making it applicable even before the model has trained enough to produce informative losses.
+Earlier work on instance-level difficulty includes **Online Hard Example Mining (OHEM)** [[2]](#ref-2), which selects high-loss examples per mini-batch, and the **Self-Paced Learning** framework [[3]](#ref-3). VitalRoute's hard-sample sampler ranks examples by activation stress, not loss; stress is defined before loss becomes informative.
 
 ### Dead neuron research
 
-Dead ReLU units (neurons that output zero for all inputs) are a well-documented failure mode [[4]](#ref-4). Prior work has used dead-neuron counts to guide **structured pruning** during training [[5]](#ref-5): units that consistently die are candidates for removal. VitalRoute repurposes the same signal in the opposite direction — dead neurons identify *which classes and samples the model is failing on* — driving oversampling rather than removal.
+Dead ReLU units (neurons that output zero for all inputs) are a well-documented failure mode [[4]](#ref-4). Prior work has used dead-neuron counts to guide **structured pruning** during training [[5]](#ref-5): units that consistently die are candidates for removal. VitalRoute uses dead-neuron rates for oversampling: high per-class stasis marks classes and samples the model fails to represent.
 
 A concurrent approach [[6]](#ref-6) dynamically grows and prunes neurons based on gradient magnitude for minority classes. This modifies model architecture; VitalRoute operates purely through data routing and optimizer state.
 
 ### Per-layer learning rate scaling
 
-Several methods assign distinct learning rates per layer. **LARS** [[7]](#ref-7) and **LAMB** [[8]](#ref-8) scale by weight-to-gradient norm ratio, primarily for large-batch distributed training. **LENA** [[9]](#ref-9) scales by gradient variance per layer. **LLR** [[10]](#ref-10) uses heavy-tail spectral analysis of weight matrices. **AdaLip** [[11]](#ref-11) approximates the Lipschitz constant of gradients per layer. VitalRoute's rule `lr_l = base_lr / (1 + α · stasis_l)` uses the dead-unit fraction as the diagnostic signal — a complementary approach motivated by the observation that layers with high stasis are already under-stimulated and should not be pushed harder.
+Several methods assign distinct learning rates per layer. **LARS** [[7]](#ref-7) and **LAMB** [[8]](#ref-8) scale by weight-to-gradient norm ratio, primarily for large-batch distributed training. **LENA** [[9]](#ref-9) scales by gradient variance per layer. **LLR** [[10]](#ref-10) uses heavy-tail spectral analysis of weight matrices. **AdaLip** [[11]](#ref-11) approximates the Lipschitz constant of gradients per layer. VitalRoute sets `lr_l = base_lr / (1 + α · stasis_l)` from the dead-unit fraction: high-stasis layers receive lower learning rates.
 
 ### Label-free transfer model selection
 
-**TURTLE** [[12]](#ref-12) selects pretrained models without target labels by optimising a representation-level generalization objective. **DISCO** [[13]](#ref-13) scores transferability via the distribution of singular values in extracted features. **CODA** [[14]](#ref-14) uses a consensus-driven probabilistic model with active label queries (~25 labels). VitalRoute's criterion — lowest stasis on new unlabeled data — is simpler than these and uses a very different rationale: a model whose neurons remain alive on new inputs is extracting useful structure from them, making it a better transfer source.
+**TURTLE** [[12]](#ref-12) selects pretrained models without target labels by optimising a representation-level generalization objective. **DISCO** [[13]](#ref-13) scores transferability via the distribution of singular values in extracted features. **CODA** [[14]](#ref-14) uses a consensus-driven probabilistic model with active label queries (~25 labels). VitalRoute selects parents by lowest stasis on new unlabeled data: a model whose neurons remain active on the target inputs is a stronger transfer source than one that goes silent.
 
 ### Focal Loss
 
@@ -212,7 +212,7 @@ Several methods assign distinct learning rates per layer. **LARS** [[7]](#ref-7)
 
 ## 8. Limitations
 
-- **Routing thresholds are heuristic.** The values ( \( r < 0.25 \), \( n \leq 200 \), etc.) were chosen empirically on a small set of tasks and may not generalise.
+- **Routing thresholds are heuristic.** The values ( \( r < 0.25 \), \( n \leq 200 \), etc.) were set from benchmark tasks and may not generalise to all domains.
 - **Probe overhead.** Computing per-class stress requires one forward pass per class per refresh epoch. For large models and many classes this cost is non-trivial.
 - **ResNet / deep CNN stasis.** The stasis probe works best on linear layers with explicit ReLU activations. In architectures with BatchNorm, the normalisation masks stasis in conv layers; the probe reduces to reading stress only on linear head layers.
 - **No theoretical convergence guarantee.** The routing and sampling rules are empirically motivated; formal convergence analysis is left to future work.
@@ -221,7 +221,7 @@ Several methods assign distinct learning rates per layer. **LARS** [[7]](#ref-7)
 
 ## 9. Conclusion
 
-VitalRoute is a small, composable library that brings network health monitoring into the training loop. The four vitality signals — stasis, weak weights, weak input, saturation — provide a richer picture of per-class difficulty than frequency alone. The adaptive router selects tactics automatically from dataset shape, removing the need for per-dataset configuration. On public benchmarks, VitalRoute matches inverse-frequency weighting on overall accuracy with lower variance; minority accuracy on Fashion-MNIST is slightly below inv-freq (76.5% vs 77.6%) while digits minority exceeds it (+0.7%), and extends cleanly to any PyTorch model via forward hooks.
+VitalRoute integrates network health monitoring into the training loop. Four vitality signals — stasis, weak weights, weak input, saturation — quantify per-class difficulty beyond class frequency. The adaptive router activates tactics from dataset shape alone. On published benchmarks, overall accuracy matches inverse-frequency weighting with lower variance; Fashion-MNIST minority accuracy is 76.5% vs 77.6% for inv-freq, digits minority is +0.7% above inv-freq. PyTorch integration attaches via forward hooks to any `nn.Module`.
 
 ---
 

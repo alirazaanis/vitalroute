@@ -256,7 +256,7 @@ vitalroute     36.9%      33.5%
 
 ### Comparison summary
 
-| Comparison | Result (smoke run) |
+| Comparison | Result (quick benchmark) |
 |---|---|
 | vitalroute vs uniform | +10.3% overall; minority 33.5% vs 0% at epoch 2 |
 | vitalroute vs inv_freq | +4.1% minority at epoch 2 |
