@@ -1,11 +1,11 @@
 """PyTorch-native adaptive training controller.
 
 ``TorchTrainingController`` is the PyTorch counterpart of
-``TrainingController``. It reads your dataset shape, chooses tactics
+``TrainingController``. It reads the dataset shape, chooses tactics
 (vitality sampler, hard-sample sampler, LR dampening, unit monitoring),
 and hands back a ``DataLoader``-compatible sampler and a thin epoch hook.
 
-Your training loop stays untouched — you only add three calls:
+The training loop stays unchanged — three calls are added:
 
     ctrl    = torch_adaptive_controller(y_train, num_classes)
     sampler = ctrl.setup(model, X_train, y_train)
@@ -14,7 +14,7 @@ Your training loop stays untouched — you only add three calls:
         ctrl.on_epoch_start(model, X_train, optimizer, epoch)
         loader = DataLoader(dataset, sampler=sampler, batch_size=64)
         for X_batch, y_batch in loader:
-            ...  # your normal loss + backward + step
+            ...  # standard loss + backward + step
         ctrl.after_epoch(model, X_train, y_train)
 
 ``ctrl.setup()`` returns ``None`` when no sampler is needed (balanced
@@ -89,13 +89,13 @@ class TorchTrainingController:
         num_classes: int,
         seed: int = 0,
     ) -> Optional[EpochSampler]:
-        """Attach probe, build sampler. Call once before the training loop.
+        """Attach probe and build sampler. One invocation before the training loop.
 
         Parameters
         ----------
         X_probe / y_probe:
             A representative (stratified) subset of the training data used
-            to run the vitality probe. Should have samples from every class.
+            to run the vitality probe. Must include samples from every class.
             Typically 50–100 per class is sufficient.
         y_full:
             Full training labels (one per training example). Used to build
@@ -161,7 +161,7 @@ class TorchTrainingController:
     ) -> None:
         """Refresh probe, update LR scales and sampler weights.
 
-        Call at the top of each epoch before building the DataLoader.
+        Invoked at the top of each epoch before building the DataLoader.
         """
         self._epoch = epoch
         if self._probe is None:
@@ -229,7 +229,7 @@ class TorchTrainingController:
         return info
 
     def detach(self) -> None:
-        """Remove forward hooks. Call after training is complete."""
+        """Remove forward hooks after training is complete."""
         if self._probe is not None:
             self._probe.detach()
             self._probe = None

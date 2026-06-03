@@ -1,7 +1,7 @@
 """Benchmark: VitalRoute vs baselines on imbalanced Fashion-MNIST (PyTorch).
 
 Uses a small MLP so it finishes in ~2 minutes on CPU.
-For ResNet18 / CIFAR-10 see the NOTE at the bottom (requires GPU).
+ResNet18 / CIFAR-10: `examples/cifar10_resnet_benchmark.py` (GPU recommended).
 
 Long-tail setup:
   - Majority classes 0-4: 1 000 samples each
@@ -13,7 +13,7 @@ Four conditions, 20 epochs:
   3. vitalroute    — TorchTrainingController (vitality class sampler)
   4. focal         — focal loss (gamma=2), uniform sampler
 
-Run:
+Command:
     python examples/torch_benchmark_fmnist.py
     python examples/torch_benchmark_fmnist.py --epochs 25 --trials 3
 """
@@ -199,7 +199,7 @@ def print_table(all_results: list, epochs: int):
         print(f"{name:<16}  {np.mean(ov):>8.1%}±{np.std(ov):.1%}  {np.mean(mn):>8.1%}±{np.std(mn):.1%}")
     print(f"{'=' * 62}")
     print()
-    print("NOTE: For ResNet18 / CIFAR-10, run on a GPU:")
+    print("ResNet18 / CIFAR-10 benchmark (GPU recommended):")
     print("  python examples/cifar10_resnet_benchmark.py --epochs 30")
     print()
 

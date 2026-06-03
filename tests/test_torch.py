@@ -104,7 +104,7 @@ class TestVitalityProbe(unittest.TestCase):
             nn.functional.cross_entropy(model(X0), y0).backward()
             opt.step()
         self.probe.observe(self.X)
-        # at least one layer should have some stasis
+        # at least one layer is expected to show stasis
         self.assertGreater(self.probe.mean_stasis(), 0.0)
 
 
@@ -199,7 +199,7 @@ class TestTorchController(unittest.TestCase):
     def test_balanced_may_return_none_or_hard_sampler(self):
         # balanced small dataset — either hard sampler or None
         sampler = self._run(imbalance=False)
-        # just check it doesn't crash; sampler type depends on routing
+        # routing-dependent sampler; non-crash smoke check
 
 
 if __name__ == "__main__":

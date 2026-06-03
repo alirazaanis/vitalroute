@@ -107,7 +107,7 @@ class TorchVitalitySampler(Sampler):
     ) -> np.ndarray:
         """Recompute class sampling probabilities from current vitality stress.
 
-        Call once per epoch after ``probe.observe()``.
+        Invoked once per epoch after ``probe.observe()``.
         Returns the raw stress scores (one per class).
         """
         scores = self._probe.per_class_stress(X, y, self._num_classes)
@@ -195,7 +195,7 @@ class TorchHardSampleSampler(Sampler):
         y: "torch.Tensor | np.ndarray",
         model: "torch.nn.Module",
     ) -> np.ndarray:
-        """Recompute per-sample probabilities. Call after ``probe.observe()``."""
+        """Recompute per-sample probabilities after ``probe.observe()``."""
         scores = self._probe.per_sample_stress(X, y)
         n = len(scores)
         if scores.max() <= 0:

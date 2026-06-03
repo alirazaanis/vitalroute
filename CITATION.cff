@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-message: "If you use VitalRoute in your research, please cite it as below."
+message: "Cite VitalRoute as below when referencing this software."
 title: "VitalRoute: Vitality-Driven Adaptive Training for Imbalanced and Scarce Classification Tasks"
 version: 0.1.0
 date-released: 2026-05-30

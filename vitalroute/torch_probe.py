@@ -1,7 +1,7 @@
 """PyTorch integration for VitalRoute vitality probes.
 
 Attaches to any ``torch.nn.Module`` via forward hooks. No changes to
-your model, optimizer, or training loop required beyond the three hook
+the model, optimizer, or training loop are required beyond the three hook
 calls shown below.
 
 Usage
@@ -11,7 +11,7 @@ Usage
     from vitalroute.torch_probe import VitalityProbe
 
     probe = VitalityProbe(model)          # attach once before training
-    probe.observe(X_batch)               # call once per epoch (or on demand)
+    probe.observe(X_batch)               # once per epoch (or on demand)
 
     # Read composite stress per layer
     rates = probe.stasis_rates()         # np.ndarray, one value per tracked layer
@@ -190,7 +190,7 @@ class _LayerUnit:
 # ── main probe ───────────────────────────────────────────────────────────────
 
 class VitalityProbe:
-    """Attach vitality probes to a PyTorch model via forward hooks.
+    """Vitality probes for a PyTorch model via forward hooks.
 
     Parameters
     ----------
@@ -248,7 +248,7 @@ class VitalityProbe:
             i += 1
 
     def detach(self):
-        """Remove all forward hooks. Call when training is finished."""
+        """Remove all forward hooks after training is complete."""
         for u in self._units:
             u.detach()
         self._units.clear()
@@ -257,7 +257,7 @@ class VitalityProbe:
 
     @torch.no_grad()
     def observe(self, X: "torch.Tensor | np.ndarray"):
-        """Run a forward pass to capture activations. No gradients computed."""
+        """Forward pass to capture activations. No gradients computed."""
         if isinstance(X, np.ndarray):
             X = torch.from_numpy(X)
         n = X.shape[0]

@@ -1,6 +1,6 @@
-"""Quick smoke-test: attach VitalityProbe to a standard PyTorch MLP.
+"""Quick smoke-test: VitalityProbe on a standard PyTorch MLP.
 
-Run with:
+Command:
     python examples/torch_probe_demo.py
 """
 

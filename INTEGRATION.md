@@ -1,7 +1,7 @@
-# Integrating VitalRoute with your trainer
+# Integrating VitalRoute with a training loop
 
-VitalRoute does **not** own your backward pass. It provides hooks you call
-at specific points in your loop. Two integration paths:
+VitalRoute does **not** own the backward pass. It provides epoch hooks invoked
+at fixed points in the loop. Two integration paths:
 
 - **NumPy backbone** — `TrainingController` / `adaptive_controller`
 - **PyTorch (any model)** — `TorchTrainingController` / `torch_adaptive_controller`
@@ -20,14 +20,14 @@ at specific points in your loop. Two integration paths:
 
 ### Required model interface
 
-Your classifier should support:
+The classifier should support:
 
 | Method / attribute | Purpose |
 |---|---|
 | `._layers` | List of layers with `.W`, `.b`, `.activation` |
 | `.inherit_from(parent, mode="yy", fresh_head=True)` | Transfer warm-start |
 | `.forward(X, train=True/False)` | Forward pass |
-| `.train_step(X, y, optimizer)` or equivalent | Your training |
+| `.train_step(X, y, optimizer)` or equivalent | Training step |
 
 Optional for CNN-style models:
 
@@ -60,7 +60,7 @@ class_scores  = per_class_stress(model, X_train, y_train, num_classes=10)
 sample_scores = per_sample_stress(model, X_train, y_train)
 ```
 
-Use `VitalitySampler(..., stress_mode="stasis")` for legacy stasis-only class weighting.
+Legacy stasis-only class weighting: `VitalitySampler(..., stress_mode="stasis")`.
 
 ### Parent pool format
 
@@ -71,11 +71,11 @@ parent_pool = [
 ]
 ```
 
-Score with `score_transfer_candidates(parent_pool, X_new)` without training.
+Scored via `score_transfer_candidates(parent_pool, X_new)` without training.
 
-### When *not* to enable reset
+### When reset is disabled
 
-Set `skip_reset_for_head_models=True` (default) when stasis is computed on
+With `skip_reset_for_head_models=True` (default), reset is skipped when stasis is computed on
 flattened conv features — mass reset of the MLP head often hurts. The controller
 still logs vitality.
 
@@ -127,7 +127,7 @@ probe.observe(X_batch)         # one forward pass, no gradients
 print(probe.summary())         # stasis + composite stress per layer
 print(probe.mean_stasis())     # scalar health indicator
 
-probe.detach()                 # clean up
+probe.detach()                 # remove hooks
 ```
 
 ### Key design note: probe data vs sampler data
@@ -136,9 +136,9 @@ probe.detach()                 # clean up
 
 | Parameter | Purpose | Typical size |
 |---|---|---|
-| `X_probe, y_probe` | Run the vitality probe — must be **stratified** (all classes present) | ~50 per class |
+| `X_probe, y_probe` | Vitality probe input — must be **stratified** (all classes present) | ~50 per class |
 | `y_full` | Build sampler class pools — must cover **all training examples** | full dataset |
 
-Passing an unrepresentative `y_probe` (e.g. only one class) will cause the
-sampler to over-weight that class and break learning. Always use a stratified
-probe batch.
+Passing an unrepresentative `y_probe` (e.g. only one class) causes the
+sampler to over-weight that class and break learning. The probe batch must be
+stratified.

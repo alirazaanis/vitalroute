@@ -8,7 +8,7 @@ Reads four stress signals on hidden units during training:
     saturation      — near-constant activation with large mean
 
 These signals drive the VitalRoute training controller (sampling,
-transfer pick, conditional reset). Learning itself stays on your
+transfer pick, conditional reset). Learning remains on the existing
 optimizer (e.g. Adam + backprop).
 """
 
@@ -148,7 +148,7 @@ def diagnose(
 
 # ----------------------------------------------------------------------
 # Resurrect: re-initialise clotting / starving hidden units.
-# We never touch the output layer (its scale matters for softmax).
+# The output layer is never modified (its scale matters for softmax).
 # ----------------------------------------------------------------------
 
 def _resolve_core(model: object, X: np.ndarray) -> Tuple[MLP, np.ndarray]:
@@ -220,7 +220,7 @@ def resurrect_dead(
             std_out = np.sqrt(0.5 / next_layer.W.shape[0])
             next_layer.W[u, :] = rng.normal(0.0, std_out, next_layer.W.shape[1]).astype(np.float32)
 
-            # Wipe optimiser momentum for the column we just rewrote so
+            # Wipe optimiser momentum for the rewritten column so
             # stale gradients don't immediately undo the resurrection.
             for arr in (layer.mW, layer.vW, layer.velW):
                 if arr.size:
@@ -617,7 +617,7 @@ def fingerprint_distance(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def diagnose_any(model: object, X: np.ndarray, **kwargs) -> HealthReport:
-    """Run disease diagnosis on an MLP or ConvNet (head layers for CNN)."""
+    """Diagnose layer health on an MLP or ConvNet (head layers for CNN)."""
     mlp, Xh = _resolve_core(model, X)
     return diagnose(mlp, Xh, **kwargs)
 

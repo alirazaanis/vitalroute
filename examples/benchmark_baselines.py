@@ -11,7 +11,7 @@ Metrics reported:
   - minority-class accuracy (classes with < min_frac of majority)
   - per-class accuracy table
 
-Run:
+Command:
     python examples/benchmark_baselines.py
 """
 

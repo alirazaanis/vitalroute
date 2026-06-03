@@ -121,7 +121,7 @@ def refresh_lr_scales(
     epoch: int,
     refresh_every: int = 1,
 ) -> Optional[Dict[int, float]]:
-    """Call at epoch start when using a vitality-scaled optimizer."""
+    """Invoked at epoch start when using a vitality-scaled optimizer."""
     if not hasattr(optimizer, "refresh_health"):
         return None
     if epoch % refresh_every != 0:

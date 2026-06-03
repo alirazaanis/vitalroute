@@ -6,25 +6,18 @@
 [![Tests](https://img.shields.io/badge/tests-pytest-brightgreen.svg)](tests/)
 
 **Task-aware training controller** for feed-forward classifiers. It sits on top of
-your normal optimizer (Adam, SGD, etc.) and decides *when* to apply training
-tactics based only on **how your training set is shaped** — not by
+the training optimizer (Adam, SGD, etc.) and decides *when* to apply training
+tactics based only on **training-set shape** (class counts and size) — not by
 hand-tuning flags for every dataset.
 
-## Background
+The library distills a research line on network vitality — stasis, weak coupling,
+saturation, and transferable structure — into probes, label-free parent selection,
+and class-aware sampling, without requiring any legacy codebase or naming scheme.
 
-VitalRoute grew out of a research line that treated neural networks like
-organisms: hidden units can show **stasis** (non-responding), **weak
-coupling**, or **saturation**, and pretrained models can be **inherited**
-into a child task the way biological structure carries over. The original
-work framed those ideas as pathology and inheritance on a cell hierarchy;
-here they are distilled into a small, practical library — vitality probes,
-label-free parent choice, and class-aware sampling — without tying you to
-any particular legacy codebase or naming scheme.
+## Vitality signals and tactics
 
-## Idea (plain language)
-
-A classic biological metaphor inspired this work: treat the network like a
-body you can **examine** while it learns.
+A classic biological metaphor treats the network like a
+body that can be **examined** while it learns.
 
 | Signal | Meaning |
 |---|---|
@@ -33,17 +26,17 @@ body you can **examine** while it learns.
 | **Weak input** | Incoming activations are tiny vs weights |
 | **Saturation** | Unit stuck near a constant output |
 
-From those readings, VitalRoute can:
+From those signals, VitalRoute provides:
 
 1. **Vitality sampler** — For **imbalanced** data, oversample classes with high
    **composite stress** (all four signals, not only stasis).
-2. **Transfer pick** — For **scarce** data, choose the best pretrained parent by
-   lowest stasis on the new inputs (no labels needed), then warm-start weights.
+2. **Transfer pick** — For **scarce** data, selects the best pretrained parent by
+   lowest stasis on the new inputs (no labels needed), then warm-starts weights.
 3. **Hard-sample sampler** — When class rebalancing is off, oversample individual
    examples with high per-sample stress (stasis + weak coupling + low confidence).
 4. **LR scale** — Slow learning on layers with high stasis:
-   `lr_l = base_lr / (1 + α · stasis_l)` (helps on hard tasks at hot LR).
-5. **Monitor** — Watch layer health; **reset** stuck units only when stasis is
+   `lr_l = base_lr / (1 + α · stasis_l)` (dampens high-stasis layers at elevated base LR).
+5. **Monitor** — Logs layer health; **resets** stuck units when stasis is
    high (skipped for CNN-style models with a separate head).
 
 An **adaptive router** turns (1)–(4) on or off from class counts and dataset size.
@@ -65,7 +58,7 @@ import numpy as np
 from vitalroute import adaptive_controller, profile_task, route_plan
 from vitalroute.backbone import MLP, LayerSpec, Adam
 
-# Your training arrays
+# Training arrays
 X_train, y_train = ...
 num_classes = 10
 
@@ -74,7 +67,7 @@ prof = profile_task(y_train, num_classes)
 plan = route_plan(prof, parent_pool_available=False)
 print(plan.label)  # e.g. "imbalance", "transfer", "transfer+imbalance", "monitor"
 
-# Attach to your training loop
+# Training loop integration
 ctrl = adaptive_controller(y_train, num_classes, parent_pool=None, verbose=True)
 opt = ctrl.make_optimizer("adam", lr=1e-3)  # vitality-scaled when route includes lr_scale
 
@@ -87,11 +80,11 @@ for epoch in range(epochs):
         X_ep, y_ep = X_train[idx], y_train[idx]
     else:
         X_ep, y_ep = X_train, y_train
-    # ... your batches, loss, optimizer step ...
+    # ... standard mini-batches, loss, optimizer step ...
     ctrl.after_epoch(model, X_train, rng=np.random.default_rng(epoch))
 ```
 
-See `examples/digits_imbalanced_demo.py` for a runnable sketch.
+Runnable example: `examples/digits_imbalanced_demo.py`.
 
 ## Router rules (defaults)
 
@@ -104,35 +97,20 @@ See `examples/digits_imbalanced_demo.py` for a runnable sketch.
 | `n ≥ 40`, sampler off | Hard-sample sampler |
 | Always (when training) | Monitor (+ conditional reset) |
 
-## What this project is / is not
-
-**Is:**
-
-- A small library (NumPy + optional PyTorch) extracted from a larger neural-network research codebase
-- Evidence-backed on imbalanced digits, Fashion-MNIST long-tail, and scarce transfer tasks
-- Compatible with any PyTorch `nn.Module` via `VitalityProbe` forward hooks
-- Compatible with the custom NumPy backbone via `adaptive_controller`
-
-**Is not:**
-
-- A replacement for backprop or PyTorch
-- A guarantee of SOTA accuracy on vision (use a real CNN framework for that)
-- A claim of novelty vs all of ML — curriculum and transfer learning exist; the hook is **vitality-driven routing**
-
 ## How it compares to inverse-frequency weighting
 
 On a clean long-tail benchmark, VitalRoute ≈ inverse-frequency (inv_freq). They converge to the same answer because rare classes and broken-neuron classes heavily overlap — the network sees minority classes less, so their neurons die more.
 
-**Where VitalRoute has a real edge over inv_freq:**
+**Scenarios where VitalRoute differs from inv_freq:**
 
-| Scenario | Why VitalRoute helps |
+| Scenario | Distinction |
 |---|---|
 | Imbalanced but not uniformly scarce | A class with enough samples but high confusability (broken neurons) gets oversampled; inv_freq ignores it |
 | Difficulty shifts mid-training | VitalRoute refreshes stress every N epochs; inv_freq is static |
-| Label-free transfer selection | Picks the best pretrained parent by stasis on new inputs — no labels needed. inv_freq has no equivalent |
+| Label-free transfer selection | Selects the best pretrained parent by stasis on new inputs — no labels needed. inv_freq has no equivalent |
 | Hard-sample curriculum | Per-sample stress (stasis + low confidence) for scarce balanced data; inv_freq only works at class level |
 
-If your problem is purely long-tail with clean class boundaries, inv_freq is simpler and nearly as good. If classes overlap, difficulty shifts, or you need transfer selection without labels, VitalRoute adds real value.
+For purely long-tail problems with clean class boundaries, inv_freq is simpler and nearly as good. When classes overlap, difficulty shifts, or label-free transfer selection is required, VitalRoute adds value.
 
 ## Package layout
 
@@ -164,7 +142,7 @@ vitalroute/
 
 ## Evidence summary
 
-Measured on public-style benchmarks during development:
+Measured on public-style benchmarks:
 
 | Setting | Typical gain |
 |---|---|
@@ -200,7 +178,7 @@ VitalRoute matches inverse-frequency on overall accuracy and minority accuracy, 
 ### Probe only (read vitality signals)
 
 `VitalityProbe` attaches to any `torch.nn.Module` via forward hooks — no
-changes to your model or optimizer required:
+changes to the model or optimizer required:
 
 ```python
 from vitalroute.torch_probe import VitalityProbe
@@ -217,12 +195,12 @@ for epoch in range(epochs):
 class_scores  = probe.per_class_stress(X_train, y_train, num_classes=10)
 sample_scores = probe.per_sample_stress(X_train, y_train)
 
-probe.detach()                      # clean up hooks
+probe.detach()                      # remove hooks
 ```
 
 ### Full adaptive controller
 
-`torch_adaptive_controller` reads your class distribution and picks tactics automatically:
+`torch_adaptive_controller` reads the class distribution and picks tactics automatically:
 
 ```python
 from vitalroute.torch_controller import torch_adaptive_controller
@@ -240,13 +218,13 @@ loader  = DataLoader(dataset, sampler=sampler, batch_size=64)
 for epoch in range(epochs):
     ctrl.on_epoch_start(model, X_probe, optimizer, epoch)
     for X_batch, y_batch in loader:
-        ...  # your normal loss + backward + step
+        ...  # standard loss + backward + step
     ctrl.after_epoch(model, X_probe, y_probe)
 
 ctrl.detach()
 ```
 
-See `examples/torch_probe_demo.py` and `examples/torch_benchmark_fmnist.py` for runnable examples.
+Runnable examples: `examples/torch_probe_demo.py`, `examples/torch_benchmark_fmnist.py`.
 
 ## License
 
@@ -254,7 +232,7 @@ MIT
 
 ## Related Work
 
-VitalRoute draws on or is informed by the following lines of research. Where VitalRoute differs is noted.
+The following related work is grouped by topic. Distinctions from VitalRoute are noted per entry.
 
 **Adaptive class resampling**
 - [ART: Adaptive Resampling-based Training for Imbalanced Classification](https://arxiv.org/abs/2509.00955) (2025) — periodically refreshes class sampling weights using class-wise F1 scores. VitalRoute uses internal neuron health signals instead of output metrics.

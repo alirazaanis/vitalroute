@@ -12,7 +12,7 @@ Compares four conditions for 15 epochs:
 
 Metrics: overall val accuracy + minority-class accuracy.
 
-Run:
+Command:
     python examples/cifar10_resnet_benchmark.py
     python examples/cifar10_resnet_benchmark.py --epochs 20 --trials 2
 """
@@ -159,7 +159,7 @@ def run_trial(seed: int, epochs: int, batch: int = 128):
     sch   = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=epochs)
 
     ctrl = torch_adaptive_controller(targets_np, NUM_CLASSES, verbose=True)
-    # Use a small representative batch to seed the probe (avoid full dataset forward)
+    # Small representative batch seeds the probe (avoids a full-dataset forward pass)
     seed_idx = np.random.default_rng(seed).choice(len(idx), min(512, len(idx)), replace=False)
     X_seed = torch.stack([train_sub[i][0] for i in seed_idx]).to(DEVICE)
     y_seed = torch.tensor(targets_np[seed_idx])

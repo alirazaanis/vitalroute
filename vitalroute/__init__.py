@@ -1,4 +1,4 @@
-"""VitalRoute — task-aware training controller on top of your optimizer."""
+"""VitalRoute — task-aware training controller on top of the training optimizer."""
 
 from .router import (
     TrainingController,

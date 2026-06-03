@@ -4,7 +4,7 @@
 
 ## Abstract
 
-We present **VitalRoute**, a task-aware training controller that monitors the internal health of feed-forward neural networks during training and uses those observations to automatically select and apply remediation tactics. The core contribution is a set of four per-unit *vitality signals* — stasis, weak weights, weak input, and saturation — aggregated into a *composite stress* score that is used to drive class-aware oversampling, label-free transfer parent selection, and per-layer learning rate dampening. An *adaptive router* reads only the shape of the training set (class counts and total size) to decide which tactics to activate, requiring no user configuration per dataset. We evaluate VitalRoute on long-tail digit and Fashion-MNIST classification and show consistent gains over uniform sampling, with performance matching inverse-frequency weighting at notably lower variance. A PyTorch integration layer (`VitalityProbe`) extends the system to any `nn.Module` via forward hooks without modifying the model, optimizer, or training loop.
+**VitalRoute** is a task-aware training controller that monitors the internal health of feed-forward neural networks during training and uses those observations to automatically select and apply remediation tactics. The core contribution is a set of four per-unit *vitality signals* — stasis, weak weights, weak input, and saturation — aggregated into a *composite stress* score that drives class-aware oversampling, label-free transfer parent selection, and per-layer learning rate dampening. An *adaptive router* reads only the shape of the training set (class counts and total size) to decide which tactics to activate, requiring no per-dataset configuration. Evaluation on long-tail digit and Fashion-MNIST classification shows consistent gains over uniform sampling, with performance matching inverse-frequency weighting at notably lower variance. A PyTorch integration layer (`VitalityProbe`) extends the system to any `nn.Module` via forward hooks without modifying the model, optimizer, or training loop.
 
 ---
 
@@ -12,7 +12,7 @@ We present **VitalRoute**, a task-aware training controller that monitors the in
 
 Training neural networks on imbalanced or scarce datasets remains a practical challenge. The dominant remedies — inverse-frequency class weighting, focal loss, and simple oversampling — treat the problem from the data distribution perspective and are agnostic to what is happening inside the network.
 
-We take a complementary view: the difficulty a network has with a class is reflected in the *activation patterns* of its hidden units. A class that consistently causes neurons to fall silent (dead ReLUs), collapse their weights, or saturate is a class the network is failing to represent. Oversampling based on this internal signal — rather than purely on frequency — is the central hypothesis of VitalRoute.
+A complementary view treats class difficulty as reflected in the *activation patterns* of hidden units. A class that consistently causes neurons to fall silent (dead ReLUs), collapse their weights, or saturate is a class the network fails to represent. Oversampling based on this internal signal — rather than purely on frequency — is the central hypothesis of VitalRoute.
 
 This report describes the design, implementation, and empirical evaluation of VitalRoute v0.1.0.
 
@@ -20,7 +20,7 @@ This report describes the design, implementation, and empirical evaluation of Vi
 
 ## 2. Vitality Signals
 
-For each hidden layer \( l \) with activation matrix \( A^{(l)} \in \mathbb{R}^{N \times d_l} \) computed on a batch of \( N \) inputs, we define four scalar stress signals over units \( j = 1, \ldots, d_l \):
+For each hidden layer \( l \) with activation matrix \( A^{(l)} \in \mathbb{R}^{N \times d_l} \) computed on a batch of \( N \) inputs, four scalar stress signals are defined over units \( j = 1, \ldots, d_l \):
 
 ### 2.1 Stasis (dead-unit rate)
 
@@ -70,7 +70,7 @@ $$\Sigma_c = \frac{1}{L}\sum_{l=1}^{L} \sigma_l\!\left(X_c\right)$$
 
 ### 3.1 Vitality Class Sampler
 
-For imbalanced datasets, we replace uniform class sampling with a distribution proportional to composite stress. Given class stress scores \( \Sigma = (\Sigma_1, \ldots, \Sigma_C) \), the sampling probability for class \( c \) is:
+For imbalanced datasets, uniform class sampling is replaced with a distribution proportional to composite stress. Given class stress scores \( \Sigma = (\Sigma_1, \ldots, \Sigma_C) \), the sampling probability for class \( c \) is:
 
 $$p_c = (1 - \alpha) \cdot \frac{1}{C} + \alpha \cdot \frac{\exp(\beta \Sigma_c)}{\sum_{c'} \exp(\beta \Sigma_{c'})}$$
 
@@ -90,7 +90,7 @@ The intuition: a model whose neurons remain active on the new data is extracting
 
 ### 3.3 Hard-Sample Curriculum Sampler
 
-For scarce balanced datasets, we oversample individual examples with high per-sample stress. The per-sample score combines layer-level stasis (averaged over hidden layers for this specific input) with the model's confidence gap:
+For scarce balanced datasets, individual examples with high per-sample stress are oversampled. The per-sample score combines layer-level stasis (averaged over hidden layers for this specific input) with the model's confidence gap:
 
 $$\psi_i = 0.5 \cdot \bar{s}_i + 0.5 \cdot (1 - \hat{p}_{y_i})$$
 
@@ -206,7 +206,7 @@ Several methods assign distinct learning rates per layer. **LARS** [[7]](#ref-7)
 
 ### Focal Loss
 
-**Focal Loss** [[15]](#ref-15) re-weights the cross-entropy loss per sample by a factor `(1 - p_t)^γ`, focusing training on hard examples. It is a loss-level intervention; VitalRoute operates at the data-sampling level. On Fashion-MNIST (our PyTorch benchmark) focal loss did not improve over uniform sampling, consistent with reports that its benefits are dataset- and architecture-dependent.
+**Focal Loss** [[15]](#ref-15) re-weights the cross-entropy loss per sample by a factor `(1 - p_t)^γ`, focusing training on hard examples. It is a loss-level intervention; VitalRoute operates at the data-sampling level. On Fashion-MNIST (the included PyTorch benchmark) focal loss did not improve over uniform sampling, consistent with reports that its benefits are dataset- and architecture-dependent.
 
 ---
 
@@ -219,7 +219,7 @@ Several methods assign distinct learning rates per layer. **LARS** [[7]](#ref-7)
 
 ---
 
-## 8. Conclusion
+## 9. Conclusion
 
 VitalRoute is a small, composable library that brings network health monitoring into the training loop. The four vitality signals — stasis, weak weights, weak input, saturation — provide a richer picture of per-class difficulty than frequency alone. The adaptive router selects tactics automatically from dataset shape, removing the need for per-dataset configuration. On public benchmarks, VitalRoute matches or exceeds the best simple baseline (inverse-frequency weighting) with lower variance, and extends cleanly to any PyTorch model via forward hooks.
 
