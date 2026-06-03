@@ -11,6 +11,10 @@ fixes, tests, documentation, benchmarks, and new training tactics.
 
 ## Development setup
 
+End users install from PyPI: `pip install vitalroute` ([pypi.org/project/vitalroute](https://pypi.org/project/vitalroute/)).
+
+Contributors clone and install in editable mode:
+
 ```bash
 git clone https://github.com/alirazaanis/vitalroute.git
 cd vitalroute

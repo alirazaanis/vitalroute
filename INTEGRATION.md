@@ -1,5 +1,8 @@
 # Integrating VitalRoute with a training loop
 
+Install from PyPI: `pip install vitalroute` ([package page](https://pypi.org/project/vitalroute/)).
+PyTorch support: `pip install "vitalroute[torch]"`.
+
 VitalRoute does **not** own the backward pass. It provides epoch hooks invoked
 at fixed points in the loop. Two integration paths:
 

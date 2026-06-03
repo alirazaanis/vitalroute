@@ -37,6 +37,7 @@ classifiers = [
 [project.urls]
 Homepage       = "https://github.com/alirazaanis/vitalroute"
 Repository     = "https://github.com/alirazaanis/vitalroute"
+PyPI           = "https://pypi.org/project/vitalroute/"
 "Bug Tracker"  = "https://github.com/alirazaanis/vitalroute/issues"
 Changelog      = "https://github.com/alirazaanis/vitalroute/blob/master/CHANGELOG.md"
 Documentation  = "https://github.com/alirazaanis/vitalroute/blob/master/INTEGRATION.md"

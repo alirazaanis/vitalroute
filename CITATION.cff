@@ -5,6 +5,7 @@ version: 0.2.0
 date-released: 2026-06-03
 license: MIT
 repository-code: "https://github.com/alirazaanis/vitalroute"
+repository-artifact: "https://pypi.org/project/vitalroute/"
 abstract: >
   VitalRoute is a task-aware training controller that monitors four internal
   stress signals (stasis, weak weights, weak input, saturation) in neural
